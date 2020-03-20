@@ -1,98 +1,80 @@
-import { Machine, send, assign, spawn } from 'xstate';
-import cellMachine from './cellMachine';
+import { Machine, assign } from 'xstate';
+import { uncoverCell } from '../utils';
 
 const fieldMachine = Machine(
   {
     id: 'field-machine',
     context: {
-      field: [
-        [0, 1, -1],
-        [0, 1, 1],
-        [0, 0, 0],
-      ],
+      field: [],
+      uncoveredCells: {},
+      mines: 8,
       score: 0,
     },
     initial: 'initializing',
     states: {
-      initializing: {
-        entry: assign({
-          field: ctx => {
-            return ctx.field.map((row, xPos) =>
-              row.map((value, yPos) => ({
-                value,
-                xPos,
-                yPos,
-                ref: spawn(
-                  cellMachine.withContext({
-                    ...cellMachine.context,
-                    value,
-                    xPos,
-                    yPos,
-                  })
-                ),
-              }))
-            );
-          },
-        }),
-      },
+      initializing: {},
       playing: {
-        initial: 'idle',
-        states: {
-          idle: {},
-          uncovering: {},
+        on: {
+          '': [{ target: 'winner', cond: 'isWinner' }],
         },
-        activities: ['counting'],
+        // activities: ['counting'],
       },
-      gameover: {},
+      winner: {
+        on: {
+          'CELL.UNCOVER': null,
+        },
+      },
+      gameover: {
+        on: {
+          'CELL.UNCOVER': null,
+          NEW_GAME: {
+            actions: assign((_ctx, e) => ({
+              field: e.field,
+              uncoveredCells: {},
+            })),
+            target: 'initializing',
+          },
+        },
+      },
     },
     on: {
-      'CELL.UNCOVERED': [
+      'CELL.UNCOVER': [
         { target: '.gameover', cond: 'isGameOver' },
-        { target: 'playing.idle', cond: 'isTurnOver' },
-        {
-          actions: (ctx, e) => {
-            if (e.cell && e.cell.xPos >= 0 && e.cell.yPos >= 0) {
-              const { xPos, yPos } = e.cell;
-              let xStart = xPos - 1;
-              let yStart = yPos - 1;
-
-              for (let neighborX = xStart; neighborX <= xPos + 1; neighborX++) {
-                for (
-                  let neighborY = yStart;
-                  neighborY <= yPos + 1;
-                  neighborY++
-                ) {
-                  if (
-                    ctx.field[neighborX] !== undefined &&
-                    ctx.field[neighborX][neighborY] !== undefined &&
-                    ctx.field[neighborX][neighborY].value !== -1 &&
-                    !(neighborX === xPos && neighborY === yPos)
-                  ) {
-                    ctx.field[neighborX][neighborY].ref.send('UNCOVER'); // send uncover event to neighbors
-                  }
-                }
-              }
-            }
-          },
-          cond: 'isEmpty',
-        },
+        { target: 'playing', actions: ['uncover'], cond: 'isCovered' },
       ],
     },
   },
   {
-    activities: {
-      counting: ctx => {
-        const interval = setInterval(() => {
-          assign({ score: ctx => ctx.score + 1 });
-        }, 1000);
-
-        return () => clearInterval(interval);
-      },
+    actions: {
+      uncover: assign({
+        uncoveredCells: (ctx, e) => {
+          const { row, col } = e.position;
+          const uncoveredCells = uncoverCell(ctx.field, row, col);
+          return {
+            ...ctx.uncoveredCells,
+            ...uncoveredCells,
+          };
+        },
+      }),
     },
+    // activities: {
+    // counting: ctx => {
+    //   const interval = setInterval(() => {
+    //     send('COUNT_SCORE');
+    //   }, 1000);
+    //   return () => clearInterval(interval);
+    // },
+    // },
     guards: {
-      isTurnOver: (_ctx, e) => e.cell && e.cell.value > 0,
-      isGameOver: (_ctx, e) => e.cell && e.cell.value === -1,
-      isEmpty: (_ctx, e) => e.cell && e.cell.value === 0,
+      isWinner: ({ uncoveredCells, field, mines }) => {
+        return (
+          Object.keys(uncoveredCells).length ===
+          field.length * field[0].length - mines
+        );
+      },
+      isCovered: (ctx, e) =>
+        ctx.uncoveredCells[`${e.position.row}${e.position.col}`] === undefined,
+      isGameOver: (ctx, e) => ctx.field[e.position.row][e.position.col] === 1,
     },
   }
 );

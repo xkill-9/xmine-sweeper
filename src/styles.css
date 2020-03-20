@@ -1,3 +1,7 @@
+:root {
+  --cols: 8;
+}
+
 html {
   box-sizing: border-box;
 }
@@ -13,10 +17,18 @@ html {
   margin: 20px auto;
   width: 200px;
   gap: 0;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(var(--cols), 1fr);
   grid-template-rows: auto;
   grid-auto-flow: row;
   align-items: strech;
+}
+
+[data-state='gameover'] .cell.is-mine:after {
+  background-color: darkred;
+}
+
+[data-state='winner'] .cell.is-mine:after {
+  background-color: lightgreen;
 }
 
 .cell {
@@ -28,7 +40,7 @@ html {
   border: 1px solid #888;
 }
 
-.cell[data-is-covered='true']:after {
+.cell.is-covered:after {
   content: '';
   position: absolute;
   left: 0;
