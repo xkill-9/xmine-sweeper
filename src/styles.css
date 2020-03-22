@@ -23,11 +23,11 @@ html {
   align-items: strech;
 }
 
-[data-state='gameover'] .cell.is-mine:after {
+[data-state$='loser'] .cell.is-mine:after {
   background-color: darkred;
 }
 
-[data-state='winner'] .cell.is-mine:after {
+[data-state$='winner'] .cell.is-mine:after {
   background-color: lightgreen;
 }
 
